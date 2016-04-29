@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <script type="text/javascript" src="eventemitter2.min.js"></script>
+<script type="text/javascript" src="roslib.min.js"></script>
+	
+  <script src="jquery.min.js" type="text/javascript"></script>
+  <script src="jquery/jquery-1.11.3.min.js"></script>
+	<script src="jquery/jquery.mobile-1.4.5.min.js"></script>
+	<script src="blockui/jquery.blockUI.js"></script>
+	<script src="js/tts.js?ver=0.2" type="text/javascript"></script>
+		
+  
+  <title>command recognition</title>
+</head>
+<body>
+
+<div class='main'>
+  <!-- Start of tutorial code ----------------------------------------------------------  -->
+
+
+<div id="transcript">&nbsp;</div>
+<br>
+<div id="instructions">&nbsp;</div>
+<div id="controls">
+<button id="start_button">Click to Start</button>
+</div>
+<div>
+
+				<br>			"command undefine",
+				<br>			"Please Go to the kitchen and bring me a coke",
+				<br>			"Could you please answer some question",
+				<br>			"Please give me a coke",
+				<br>			"Would you find my spary please",
+				<br>			"Please bring me coffee mate",
+				<br>			"whatever want"
+					
+				<br>		"Which has the highest mountain: Earth or Mars?",
+				<br>		"What are the small indentations on a golf ball called?",
+				<br>		"Which city has the largest population?",
+				<br>		"Which country claims the world's tallest building?",
+				<br>		"With which device are earthquakes recorded?",
+				<br>		"Who was once known as the King of Soul, and now as the Godfather of Soul?",
+				<br>		"Name the Yellow Telly Tubby.",
+				<br>		"What is 'Tiger' Woods's first name?",
+				<br>		"What are Alpha Centauri and Sirius?",
+					<br>	"Which actress starred in High Society ?",
+				<br>		"In which war was Operation Desert Storm?",
+				<br>		"Which 60s rock group recorded Lighter Shade of Pale?" ,
+				<br>		"Clean, Jerk, and Snatch are terms used in which activity?",
+				<br>		"Which country is bordered by both the Atlantic and Indian Oceans?",
+				<br>		"Which insect accurately indicates the air temperature?",
+				<br>		"In which business is the richest man in the world?" ,
+				<br>		"How many men have walked on the moon?", 
+				<br>		"In which country would one find 8 of the world's 10 highest moiuntains?",
+				<br>		"Which is the world's second-largest country in land area?",
+				<br>		"What is the most common blood type in humans?",
+				<br>		"The first television set was sold in which year?" , 
+				<br>		"The name of which area in the Pacific means many islands?",
+				<br>		"What is the only word in English ending in the letters mt?",
+				<br>		"There are only four words in the English language which end in dous. Two are tremendous and stupendous. Name the other two.<br>
+				
+
+
+&nbsp;</div>
+<div id="alireza">&nbsp;</div>
+<br>
+
+<style>
+    #controls {
+        text-align: center;
+    }
+    #start_button {
+        font-size: 16pt;
+    }
+	#alireza {
+        font-size: 56pt;
+    }
+    #transcript {
+        color: darkred;
+        font-size: 16pt;
+        border: 1px solid #ccc;
+        padding: 5px;
+        text-align: center;
+    }
+    #instructions {
+        color: darkblue;
+        font-size: 14pt;
+        text-align: center;
+    }
+</style>
+
+
+<script type="text/javascript">
+    var finalTranscript1 = "sepanta speech start";
+	var finalTranscript = '';
+    var recognizing = false;
+	var sepanta_feedback = '';
+	var speechflag = 0;
+	var finalTranscriptcmd='';
+	var mode='idle';
+	var sepanta_tts='';
+	var endtts ='';
+		
+
+    $(document).ready(function() 
+	{
+	
+					
+	
+        // check that your browser supports the API
+        if ('webkitSpeechRecognition' in window) 
+		{
+	
+				// Create the recognition object and define the event handlers
+				var commandspch = "";
+				var recognition = new webkitSpeechRecognition();
+				recognition.continuous = true;         // keep processing input until stopped
+				recognition.interimResults = true;     // show interim results
+				recognition.lang = 'en-US';           // specify the language
+				var feed;
+				var tempcmd = "temp";
+				var rbServer = new ROSLIB.Ros(
+				{
+				url : 'ws://192.168.2.109:9090'
+				});
+
+				// This function is called upon the rosbridge connection event
+				rbServer.on('connection', function() 
+				{
+				// Write appropriate message to #feedback div when successfully connected to rosbridge
+				var fbDiv = document.getElementById('feedback');
+				feed = 'Connected to websocket server';
+				console.log('Connected to websocket server');
+				});
+
+				// This function is called when there is an error attempting to connect to rosbridge
+				rbServer.on('error', function(error) 
+				{
+				// Write appropriate message to #feedback div upon error when attempting to connect to rosbridge
+				var fbDiv = document.getElementById('feedback');
+				//fbDiv.innerHTML += "<p>Error connecting to websocket server.</p>";
+				console.log('Error connecting to websocket server');
+				feed = 'Error connecting to websocket server';
+				});
+
+				// This function is called when the connection to rosbridge is closed
+				rbServer.on('close', function() 
+				{
+				// Write appropriate message to #feedback div upon closing connection to rosbridge
+				// var fbDiv = document.getElementById('feedback');
+				// fbDiv.innerHTML += "<p>Connection to websocket server closed.</p>";
+				console.log('Connection to websocket server closed');
+				feed = 'Connection to websocket server closed';
+				});
+
+				// These lines create a topic object as defined by roslibjs
+				var speech_rec = new ROSLIB.Topic(
+				{
+				ros : rbServer,
+				name : '/speechRec/cmd_spch',
+				messageType : 'std_msgs/String'
+				});
+				
+				var speech_tts = new ROSLIB.Topic(
+				{
+				ros : rbServer,
+				name : '/texttospeech/feedback',
+				messageType : 'std_msgs/String'
+				});
+
+				// These lines create a message that conforms to the structure of the spch_cmd defined in our ROS installation
+				// It initalizes all properties to zero. They will be set to appropriate values before we publish this message.
+				var spch_cmd = new ROSLIB.Message(
+				{
+				data: "sepanta",
+				});
+								
+				//listen
+				var listener = new ROSLIB.Topic(
+				{
+				ros : rbServer,
+				name : '/speechRec/feedback_spch',
+				messageType : 'std_msgs/String'
+				});
+				var listenertts = new ROSLIB.Topic(
+				{
+				ros : rbServer,
+				name : '/texttospeech/message',
+				messageType : 'std_msgs/String'
+				});
+				// Then we add a callback to be called every time a message is published on this topic.
+				recognition.onstart = function() {
+				recognizing = true;
+				$('#instructions').html('Speak slowly and clearly');
+				$('#start_button').html('Click to Stop');
+				};
+								
+				
+				recognition.onerror = function(event) {
+				console.log("There was a recognition error...");
+				};
+
+				recognition.onend = function() {
+					continueChat();
+					explodestart();	
+								
+				};
+
+				recognition.onresult = function(event) {
+				
+					var interimTranscript = '';
+					// Assemble the transcript from the array of results
+					for (var i = event.resultIndex; i < event.results.length; ++i) {
+						if (event.results[i].isFinal) {
+							finalTranscript += event.results[i][0].transcript;
+						} else {
+							interimTranscript += event.results[i][0].transcript;
+						}
+					}
+					//console.log("interim:  " + interimTranscript);
+					//console.log("final:    " + finalTranscript);
+					$('#transcript').html(finalTranscript);
+					console.log('onresults mode ' + mode );
+					if(mode!="idle")
+					{
+					if(finalTranscript.length > 0) {
+						    //speechflag = 0;
+							//console.log('speechflag results ' + speechflag );
+							recognition.stop();
+							recognizing = false;
+						}
+					
+					finalTranscript1=finalTranscript;
+					}
+					
+				finalTranscript= '';
+					/////////////////////////////////////////////
+					
+					//////////////////////////////////////////////
+					
+				};
+				
+				var tempfi="sepanta speech start";
+				var explodestart = function()
+				{
+				recognizing = true;
+				recognition.start();
+				}
+				var explode = function()
+				{
+					var i=1;
+				//console.log(mode);
+						listenertts.subscribe(function(message) 
+						{
+							
+							sepanta_tts = message.data;
+							//console.log('sepanta_tts:' + sepanta_tts);							
+						});
+						
+						if(sepanta_tts != '')
+						{
+						console.log('sepanta_tts:' + sepanta_tts);
+						spch_cmd.data = 'start';
+						speech_tts.publish(spch_cmd);
+						doSpeak(sepanta_tts);
+						sepanta_tts='';
+						
+						}
+						if(endtts == "stop")
+						{
+						spch_cmd.data = 'stop';
+						speech_tts.publish(spch_cmd);
+						endtts='';
+						console.log('text to speech ready ');
+						}
+					listener.subscribe(function(message) 
+						{
+							//console.log('Received message on ' + listener.name + ': ' + message.data + '  ' + i );
+							i++;
+							sepanta_feedback = message.data;
+							// If desired, we can unsubscribe from the topic as well.
+							
+						}); 
+						  
+						
+						i++;  
+						
+						if (speechflag==0 && recognizing == false ){
+						
+						speechflag = 1;
+						recognizing = true;
+						recognition.start();
+						
+						
+						//console.log('recognizing: start from settime' + speechflag);
+						}
+						  
+			
+	  
+						 // console.log('sepanta_feedback:' + sepanta_feedback);
+						  
+					if(sepanta_feedback == 'start')
+						{
+						commandspch='';
+						finalTranscriptcmd='';
+						//console.log('start gereftam');
+						mode='start';
+						spch_cmd.data = 'ready';
+						speech_rec.publish(spch_cmd);
+						}		
+							else if(sepanta_feedback == 'qstart')
+							{
+							commandspch='';
+							finalTranscriptcmd='';
+							//console.log('qstart gereftam');
+							mode='qstart';
+							spch_cmd.data = 'qready';
+							speech_rec.publish(spch_cmd);
+							
+							}	
+							
+					sepanta_feedback="";
+					
+							
+							
+							commandspch=finalTranscriptcmd;
+							
+							//console.log('tempcmd:'+tempcmd);
+							
+							if(commandspch != "" && mode !='idle' && commandspch != 0)
+							{
+									console.log('mode:'+mode);
+									console.log('commandspch:'+commandspch);
+									spch_cmd.data = commandspch;
+									// Publish the message 
+									speech_rec.publish(spch_cmd);
+									if(commandspch != 2)
+									{
+									mode='idle';
+									}
+									commandspch='';
+									finalTranscriptcmd='';
+									
+							}
+						
+						commandspch='';
+						finalTranscriptcmd='';
+						
+						
+						
+						
+						//console.log('gir kardam');
+						
+						
+						if(sepanta_feedback == 'stop')
+						{
+							listener.unsubscribe();
+							recognition.stop();
+							recognizing = false;
+							$('#instructions').html('sepanta_feedback stop');
+							$('#start_button').html('sepanta_feedback stop');
+							sepanta_feedback='';
+						} 
+						
+						
+						
+					
+				};
+				
+			//	setTimeout(explode, 1000);
+				window.setInterval(function(){
+				/// call your function here
+				explode();
+				}, 1000);		
+				
+				
+				$("#start_button").click(function(e) {
+					e.preventDefault();
+
+				   
+						// Request access to the User's microphone and Start recognizing voice input
+						recognition.start();
+						$('#instructions').html('Allow the browser to use your Microphone');
+						$('#start_button').html('waiting');
+						$('#transcript').html('&nbsp;');
+					
+				});
+       }
+	   
+	   
+	  
+		
+	function multiSearchAnd(text, searchWords){
+  // create a regular expression from searchwords using join and |. Add "gi".
+  // this time put our search words inside back reference catching brackets
+  // Example: ["ANY", "UNATTENDED","HELLO"] becomes
+  // "(ANY)|(UNATTENDED)|(HELLO)","gi"
+  // (..) are backreferences. | means OR. gi means GLOBALLY and CASEINSENSITIVE
+  var searchExp = new RegExp("("+searchWords.join(")|(")+")","gi");
+  // use match to return an array of backreference matches. If the array length doesn't match searchWords then Not found!!
+
+  return (text.match(searchExp).length );
+	}
+
+	//console.log(multiSearchAnd("Any items left unattended on this table", ["ANY","UNATTENDED","taBle" , "left"])); // Not Found!!
+	//console.log(multiSearchAnd("Any items left unattended on this table", ["Any","UNattended","taBle"])); // Found!! 
+	 
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+function wordsInStringArray( arr, str ) /* search array of strings 'arr' for any word in string 'str' */
+{
+ var wordGroup  = str.replace( /^\\s+|\\s+$/g, "" ).split( /\\W+/ ), found = null, re;
+
+ for( var i = 0; i < arr.length && !found;  i++ )
+  for( var j = 0, wLen = wordGroup.length; j < wLen && !found; j++ )
+   if( ( re = new RegExp( "\\\\b" + wordGroup[ j ] + "\\\\b", "i" ) ).test( arr[ i ] )  )
+    found = { word : arr[ i ].match( re ), elem : arr[ i ] };
+
+ return found;
+}
+
+					
+					
+ //result = wordsInStringArray( stringArray, wordString ); 
+//console.log(result.word  +"and" + result.elem); // Not Found!!
+ 
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+
+	 
+	   
+	   
+    });
+</script>
+
+
+  <!-- End of tutorial code ------------------------------------------------------------  -->
+</div>
+
+
+<div class='footer'>
+  &copy; 2016 aminabedi, <a href="http://amedia-team.com">amedia-team</a>  &nbsp; &nbsp;
+  
+</div>
+<script type="text/javascript" src="compare.js"> // jquery </script>
+<script type="text/javascript" src="jquery.js"> // jquery </script>
+<script type="text/javascript" src="jquery.countTo.js"> // Counter for the user's score </script>
+
+
+</body>
+</html>
